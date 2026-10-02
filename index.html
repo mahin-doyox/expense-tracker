@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#4f46e5">
+<link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f3f5f9;color:#1f2937}
+.wrap{max-width:900px;margin:auto;padding:12px 12px 90px}
+h1{font-size:20px;margin:0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.card{background:#fff;border-radius:14px;padding:14px;box-shadow:0 1px 4px #0001;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat small{color:#6b7280;display:block}.stat b{font-size:18px}
+.inc{color:#16a34a}.exp{color:#dc2626}
+input,select,button,textarea{font:inherit;padding:9px;border:1px solid #d1d5db;border-radius:9px;background:#fff;width:100%}
+button{cursor:pointer;width:auto}
+.btn{background:#4f46e5;color:#fff;border:0}.btn.g{background:#e5e7eb;color:#111}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:110px}
+.bar{height:12px;background:#e5e7eb;border-radius:8px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;background:#16a34a;width:0}
+.warn{background:#fee2e2;color:#991b1b;padding:8px 10px;border-radius:9px;margin-top:6px;display:none}
+.tabs{display:flex;gap:6px;margin:10px 0}.tabs button{flex:1;border:0;background:#e5e7eb}
+.tabs button.on{background:#4f46e5;color:#fff}
+.item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #eee}
+.item:last-child{border:0}.item .m{flex:1;min-width:0}
+.item .m small{color:#6b7280;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item button{padding:5px 8px;border:0;background:#f3f4f6}
+.chartbox{max-width:300px;margin:auto}
+.fab{position:fixed;right:18px;bottom:18px;width:56px;height:56px;border-radius:50%;font-size:28px;padding:0;box-shadow:0 4px 10px #0004}
+.modal{position:fixed;inset:0;background:#0007;display:none;align-items:center;justify-content:center;padding:12px;z-index:9}
+.modal .card{width:100%;max-width:420px;margin:0}
+.modal label{display:block;margin:8px 0 3px;font-size:13px;color:#555}
+#ph{display:none}
+#load{position:fixed;top:0;left:0;right:0;height:3px;background:#4f46e5;display:none;z-index:99}
+.nav{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}.nav button{flex:1;border:0;background:#e5e7eb;white-space:nowrap}.nav button.on{background:#4f46e5;color:#fff}
+.item.blk{display:block}.item.blk .row{justify-content:flex-end;margin-top:6px}.item.blk .row>*{flex:0 0 auto;min-width:0}
+.hm{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px}.hm>div{aspect-ratio:1;border-radius:6px;font-size:11px;display:flex;align-items:center;justify-content:center;background:#f3f4f6;color:#374151}
+.bdg{display:inline-block;padding:6px 10px;border-radius:20px;margin:3px;background:#eef2ff;font-size:13px}.bdg.off{background:#f3f4f6;color:#9ca3af;filter:grayscale(1);opacity:.7}
+@media(max-width:600px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media print{body{background:#fff}.noprint,.fab,.modal,.item button{display:none!important}#ph{display:block}.card{box-shadow:none;border:1px solid #ddd}}
+</style>
+</head>
+<body>
+<div id="load"></div>
+<div class="wrap">
+  <div class="top">
+    <h1>💰 Daily Expense Tracker</h1>
+    <span id="sync" class="noprint" style="font-size:12px;cursor:pointer;color:#6b7280" onclick="sync()"></span>
+    <button class="noprint" style="padding:6px 10px;background:#e5e7eb;border:0" onclick="settings()">⚙️</button>
+    <input type="month" id="month" style="width:auto" onchange="render()">
+  </div>
+  <div class="nav noprint">
+    <button data-v="home" class="on" onclick="showView('home')">🏠 Home</button>
+    <button data-v="rep" onclick="showView('rep')">📊 Report</button>
+    <button data-v="goals" onclick="showView('goals')">🎯 Goals</button>
+    <button data-v="debts" onclick="showView('debts')">🤝 Debt</button>
+  </div>
+  <div id="ph"><h2 id="phT"></h2></div>
+  <div class="view" id="v-home">
+  <div class="card noprint"><b>⚡ Quick Add</b>
+    <div class="row" style="margin-top:6px;flex-wrap:nowrap">
+      <input id="qa" placeholder="chaa 20 | rickshaw 50 kal | salary 30000" oninput="qaPreview()" onkeydown="if(event.key==='Enter')qaSave()">
+      <button class="btn" style="flex:0 0 auto;min-width:0" onclick="qaSave()">Add</button></div>
+    <small id="qaP" style="color:#6b7280;display:block;margin-top:4px"></small></div>
+
+  <div class="card grid">
+    <div class="stat"><small>আজকের খরচ</small><b class="exp" id="sToday">0</b></div>
+    <div class="stat"><small>মাসের খরচ</small><b class="exp" id="sExp">0</b></div>
+    <div class="stat"><small>মাসের Income</small><b class="inc" id="sInc">0</b></div>
+    <div class="stat"><small>মাসের Balance</small><b id="sBal">0</b></div>
+  </div>
+
+  <div class="card" id="rw"></div>
+
+  <div class="card">
+    <div class="row noprint" style="align-items:center">
+      <b style="flex:2">Monthly Budget</b>
+      <input type="number" id="bIn" placeholder="Budget ৳" min="0">
+      <button class="btn" onclick="saveBudget()">Set</button>
+    </div>
+    <div class="bar"><i id="bBar"></i></div>
+    <small id="bTxt" style="color:#6b7280"></small>
+    <div class="warn" id="bWarn"></div>
+  </div>
+
+  <div class="card"><b>Category-wise খরচ</b>
+    <div class="chartbox"><canvas id="chart"></canvas></div>
+    <div id="noChart" style="text-align:center;color:#999;display:none">এই মাসে কোনো খরচ নেই</div>
+  </div>
+
+  <div class="card">
+    <div class="row noprint">
+      <input id="q" placeholder="🔍 Search..." oninput="render()">
+      <select id="cat" onchange="render()"></select>
+    </div>
+    <div class="row noprint" style="margin-top:8px">
+      <input type="date" id="from" onchange="render()" title="From">
+      <input type="date" id="to" onchange="render()" title="To">
+      <button class="btn g" onclick="clearF()">Clear</button>
+    </div>
+    <div class="tabs noprint">
+      <button data-t="all" class="on" onclick="setTab('all')">All</button>
+      <button data-t="Expense" onclick="setTab('Expense')">Expense</button>
+      <button data-t="Income" onclick="setTab('Income')">Income</button>
+    </div>
+    <div class="row noprint" style="margin-bottom:6px">
+      <button class="btn g" onclick="exportCSV()">⬇ Excel/CSV</button>
+      <button class="btn g" onclick="printPDF()">🖨 PDF Report</button>
+    </div>
+    <div id="list"></div>
+  </div>
+  </div>
+
+  <div class="view" id="v-rep" style="display:none">
+    <div class="card"><div class="row" style="align-items:center"><b style="flex:2">Income vs Expense (৬ মাস)</b>
+      <select id="tType" onchange="renderReports()"><option value="bar">Bar</option><option value="line">Line</option></select></div>
+      <canvas id="trend"></canvas></div>
+    <div class="card" id="cmp"></div>
+    <div class="card" id="proj"></div>
+    <div class="card"><b>🗓 Spending Heatmap</b><div id="hm"></div><small id="hmT" style="color:#6b7280"></small></div>
+    <div class="card"><b>🏅 Badges</b><div id="bd"></div></div>
+    <div class="card"><b>🔝 Top 5 বড় খরচ</b><div id="top5"></div></div>
+    <div class="card"><div class="row" style="align-items:center"><b style="flex:2">Year-wise Summary</b>
+      <input type="number" id="yr" onchange="renderReports()"></div><div id="yrS"></div></div>
+  </div>
+
+  <div class="view" id="v-goals" style="display:none"><div class="card"><b>🎯 Savings Goals</b><div id="goals"></div></div></div>
+
+  <div class="view" id="v-debts" style="display:none">
+    <div class="card noprint"><button class="btn" style="width:100%" onclick="splitForm()">✂️ Bill Split (bondhuder sathe bhag kora)</button></div>
+    <div class="card" id="dSum"></div>
+    <div class="card"><b>🤝 Loan / Debt</b><div id="debts"></div></div>
+  </div>
+</div>
+
+<div class="modal" id="gM"><div class="card">
+  <h3 id="gT" style="margin:0 0 6px"></h3><div id="gF"></div>
+  <div class="row" style="margin-top:14px"><button class="btn g" onclick="$('gM').style.display='none'">Cancel</button>
+  <button class="btn" onclick="genSave()">Save</button></div></div></div>
+
+<button class="btn fab noprint" onclick="fabClick()">+</button>
+
+<div class="modal" id="modal">
+  <div class="card">
+    <h3 id="mT" style="margin:0 0 6px">নতুন Entry</h3>
+    <input type="hidden" id="fId">
+    <label>Type</label>
+    <select id="fType" onchange="fillCats()"><option>Expense</option><option>Income</option></select>
+    <label>Date</label><input type="date" id="fDate">
+    <label>Category</label><select id="fCat"></select>
+    <label>Amount (৳)</label><input type="number" id="fAmt" min="0" step="any">
+    <label>Note</label><input id="fNote" placeholder="ঐচ্ছিক">
+    <div class="row" style="margin-top:14px">
+      <button class="btn g" onclick="closeForm()">Cancel</button>
+      <button class="btn" id="fSave" onclick="saveTx()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CATS={Expense:['Food','Transport','Shopping','Bills','Rent','Health','Education','Entertainment','Other'],
+            Income:['Salary','Business','Gift','Other']};
+const COLORS=['#4f46e5','#ef4444','#f59e0b','#10b981','#06b6d4','#8b5cf6','#ec4899','#84cc16','#64748b'];
+let D=[],B={},G=[],DB=[],tchart,cur='home',_gf=[],_gcb,tab='all',chart,view=[];
+const $=id=>document.getElementById(id);
+// ===== Offline-first engine =====
+const LS={get:(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const CFG=LS.get('et_cfg',{});let Q=LS.get('et_queue',[]),syncing=false;
+{const s=LS.get('et_state',null);if(s){D=s.D||[];B=s.B||{};G=s.G||[];DB=s.DB||[];}}
+const uid=()=>crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,10);
+const saveState=()=>LS.set('et_state',{D,B,G,DB});
+function applyOp(fn,a){
+  const up=(arr,o)=>{const i=arr.findIndex(x=>x.id===o.id);i<0?arr.push(o):arr[i]=o;};
+  const o=a[0];
+  if(fn==='saveTxn')up(D,{id:o.id,date:o.date,type:o.type,category:o.category,amount:+o.amount,note:o.note||''});
+  else if(fn==='deleteTxn')D=D.filter(x=>x.id!==o);
+  else if(fn==='setBudget')B[a[0]]=+a[1];
+  else if(fn==='saveGoal')up(G,{id:o.id,name:o.name,target:+o.target,saved:+o.saved||0,deadline:o.deadline||''});
+  else if(fn==='deleteGoal')G=G.filter(x=>x.id!==o);
+  else if(fn==='saveDebt')up(DB,{id:o.id,person:o.person,type:o.type,amount:+o.amount,paid:+o.paid||0,date:o.date||'',note:o.note||''});
+  else if(fn==='deleteDebt')DB=DB.filter(x=>x.id!==o);
+}
+// Local e sathe sathe apply + queue e rakho + sync try koro
+function run(fn,...a){
+  if(a[0]&&typeof a[0]==='object'&&!a[0].id)a[0]={...a[0],id:uid()};
+  applyOp(fn,a);Q.push({fn,a});LS.set('et_queue',Q);saveState();sync();
+  return Promise.resolve(true);
+}
+const offTxt=()=>'○ Offline'+(Q.length?` • ${Q.length}ta sync baki`:'');
+async function sync(){
+  const st=t=>{$('sync').textContent=t;};
+  if(syncing)return;
+  if(!CFG.url||!CFG.token){st('⚙️ Setup koro');return;}
+  if(!navigator.onLine){st(offTxt());return;}
+  syncing=true;st('⟳ Syncing...');let ok=false;const n=Q.length;
+  try{
+    const res=await fetch(CFG.url,{method:'POST',body:JSON.stringify({token:CFG.token,action:'sync',ops:Q.slice(0,n)})});
+    const j=await res.json();
+    if(!j.ok)throw new Error(j.error||'Server error');
+    Q=Q.slice(n);LS.set('et_queue',Q);
+    ({tx:D,budget:B,goals:G,debts:DB}=j.data);
+    Q.forEach(q=>applyOp(q.fn,q.a));saveState();render();st('● Synced');ok=true;
+  }catch(e){st(offTxt()+(/Unauthorized|Unknown/.test(e.message)?' — '+e.message:''));}
+  finally{syncing=false;}
+  if(ok&&Q.length)sync();
+}
+function settings(){
+  gen('⚙️ Settings',[{k:'url',l:'Apps Script Web App URL',v:CFG.url},{k:'token',l:'Secret Token',v:CFG.token}],
+    o=>{if(!o.url||!o.token){alert('Duitoi dao');return false;}LS.set('et_cfg',o);CFG.url=o.url;CFG.token=o.token;});
+}
+const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const money=n=>'৳'+Number(n).toLocaleString('en-IN');
+const sum=a=>a.reduce((s,x)=>s+x.amount,0);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function load(){$('load').style.display='none';render();sync();return Promise.resolve();}
+
+function render(){
+  const m=$('month').value, t=today();
+  const mt=D.filter(x=>x.date.slice(0,7)===m);
+  const exp=sum(mt.filter(x=>x.type==='Expense')), inc=sum(mt.filter(x=>x.type==='Income'));
+  $('sToday').textContent=money(sum(D.filter(x=>x.type==='Expense'&&x.date===t)));
+  $('sExp').textContent=money(exp); $('sInc').textContent=money(inc);
+  const bal=inc-exp; $('sBal').textContent=money(bal); $('sBal').className=bal<0?'exp':'inc';
+
+  // Budget
+  const bud=B[m]||0, pct=bud?exp/bud*100:0;
+  $('bBar').style.width=Math.min(pct,100)+'%';
+  $('bBar').style.background=pct>100?'#dc2626':pct>=80?'#f59e0b':'#16a34a';
+  $('bTxt').textContent=bud?`${money(exp)} / ${money(bud)} (${pct.toFixed(0)}%) — বাকি ${money(Math.max(bud-exp,0))}`:'এই মাসের Budget set করা হয়নি';
+  const w=$('bWarn');
+  if(bud&&exp>bud){w.style.display='block';w.textContent=`⚠️ Budget ছাড়িয়ে গেছে! ${money(exp-bud)} বেশি খরচ হয়েছে।`;}
+  else if(bud&&pct>=80){w.style.display='block';w.style.background='#fef3c7';w.style.color='#92400e';w.textContent=`⚠️ Budget এর ${pct.toFixed(0)}% খরচ হয়ে গেছে।`;}
+  else{w.style.display='none';w.style.background='';w.style.color='';}
+
+  // Doughnut
+  const g={};mt.filter(x=>x.type==='Expense').forEach(x=>g[x.category]=(g[x.category]||0)+x.amount);
+  const labels=Object.keys(g);
+  $('noChart').style.display=labels.length?'none':'block';
+  $('chart').style.display=labels.length?'block':'none';
+  if(chart)chart.destroy();
+  if(labels.length)chart=new Chart($('chart'),{type:'doughnut',
+    data:{labels,datasets:[{data:labels.map(l=>g[l]),backgroundColor:COLORS}]},
+    options:{plugins:{legend:{position:'bottom'}}}});
+
+  // Filters -> list
+  const q=$('q').value.toLowerCase(), c=$('cat').value, f=$('from').value, to=$('to').value;
+  view=D.filter(x=>(f||to)?((!f||x.date>=f)&&(!to||x.date<=to)):x.date.slice(0,7)===m)
+    .filter(x=>tab==='all'||x.type===tab)
+    .filter(x=>!c||x.category===c)
+    .filter(x=>!q||(x.note+x.category+x.amount).toLowerCase().includes(q))
+    .sort((a,b)=>b.date.localeCompare(a.date));
+  $('list').innerHTML=view.length?view.map(x=>`
+    <div class="item">
+      <div class="m"><b>${esc(x.category)}</b><small>${x.date}${x.note?' • '+esc(x.note):''}</small></div>
+      <b class="${x.type==='Income'?'inc':'exp'}">${x.type==='Income'?'+':'-'}${money(x.amount)}</b>
+      <button onclick="openForm('${x.id}')">✏️</button>
+      <button onclick="del('${x.id}')">🗑</button>
+    </div>`).join(''):'<p style="text-align:center;color:#999">কোনো data নেই</p>';
+  renderExtra();
+}
+
+function setTab(t){tab=t;document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));render();}
+function clearF(){$('q').value='';$('cat').value='';$('from').value='';$('to').value='';render();}
+
+// Form
+function fillCats(sel){
+  $('fCat').innerHTML=CATS[$('fType').value].map(c=>`<option>${c}</option>`).join('');
+  if(sel)$('fCat').value=sel;
+}
+function openForm(id){
+  const x=id?D.find(d=>d.id===id):null;
+  $('mT').textContent=x?'Edit Entry':'নতুন Entry';
+  $('fId').value=x?x.id:'';
+  $('fType').value=x?x.type:'Expense'; fillCats(x&&x.category);
+  $('fDate').value=x?x.date:today();
+  $('fAmt').value=x?x.amount:''; $('fNote').value=x?x.note:'';
+  $('modal').style.display='flex';
+}
+function closeForm(){$('modal').style.display='none';}
+async function saveTx(){
+  const o={id:$('fId').value,type:$('fType').value,date:$('fDate').value,category:$('fCat').value,
+           amount:$('fAmt').value,note:$('fNote').value.trim()};
+  if(!o.date||!(Number(o.amount)>0))return alert('Date ও সঠিক Amount দিন');
+  $('fSave').disabled=true;
+  try{await run('saveTxn',o);closeForm();await load();}finally{$('fSave').disabled=false;}
+}
+async function del(id){
+  if(!confirm('Delete করতে চান?'))return;
+  $('load').style.display='block';
+  await run('deleteTxn',id);await load();
+}
+async function saveBudget(){
+  const v=$('bIn').value; if(v==='')return;
+  await run('setBudget',$('month').value,v);B[$('month').value]=Number(v);$('bIn').value='';render();
+}
+
+// Export
+function exportCSV(){
+  const q=s=>`"${String(s).replace(/"/g,'""')}"`;
+  const rows=[['Date','Type','Category','Amount','Note'],...view.map(x=>[x.date,x.type,x.category,x.amount,x.note])];
+  const csv='\uFEFF'+rows.map(r=>r.map(q).join(',')).join('\r\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`expenses_${$('month').value}.csv`;document.body.appendChild(a);a.click();a.remove();
+}
+function printPDF(){
+  $('phT').textContent='Expense Report — '+($('from').value||$('to').value?`${$('from').value||'...'} to ${$('to').value||'...'}`:$('month').value);
+  window.print(); // Print dialog e "Save as PDF" select korun
+}
+
+// ===== Version 2 =====
+const empty='<p style="text-align:center;color:#999">কোনো data নেই</p>';
+const mkey=(y,m)=>y+'-'+String(m).padStart(2,'0');
+function showView(v){
+  cur=v;
+  document.querySelectorAll('.view').forEach(e=>e.style.display=e.id==='v-'+v?'block':'none');
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  $('month').style.display=(v==='goals'||v==='debts')?'none':'';
+  document.querySelector('.fab').style.display=v==='rep'?'none':'';
+  if(v==='rep')renderReports();
+}
+function fabClick(){cur==='goals'?goalForm():cur==='debts'?debtForm():openForm();}
+function renderExtra(){renderReports();renderGoals();renderDebts();renderHome2();renderHeat();renderBadges();}
+
+function renderReports(){
+  const m=$('month').value,[y,mo]=m.split('-').map(Number);
+  if(!$('yr').value)$('yr').value=y;
+  const ms=[];for(let i=5;i>=0;i--){const d=new Date(y,mo-1-i,1);ms.push(mkey(d.getFullYear(),d.getMonth()+1));}
+  const tot=(k,t)=>sum(D.filter(x=>x.type===t&&x.date.slice(0,7)===k));
+  const inc=ms.map(k=>tot(k,'Income')),exp=ms.map(k=>tot(k,'Expense'));
+  if(tchart)tchart.destroy();
+  tchart=new Chart($('trend'),{type:$('tType').value,data:{labels:ms,datasets:[
+    {label:'Income',data:inc,backgroundColor:'#16a34a',borderColor:'#16a34a'},
+    {label:'Expense',data:exp,backgroundColor:'#dc2626',borderColor:'#dc2626'}]},
+    options:{plugins:{legend:{position:'bottom'}}}});
+
+  // Ager mash er sathe tulona
+  const cmp=(n,a,b,expense)=>{
+    if(!b)return `<div>${n}: ager mash e data nei</div>`;
+    const r=(a-b)/b*100,bad=expense?r>0:r<0;
+    return `<div>${n}: ager mash er cheye <b class="${bad?'exp':'inc'}">${Math.abs(r).toFixed(0)}% ${r>=0?'beshi':'kom'}</b> <small>(${money(a)} vs ${money(b)})</small></div>`;};
+  $('cmp').innerHTML='<b>📈 Ager mash er sathe tulona</b><div style="margin-top:6px">'+cmp('Khoroch',exp[5],exp[4],true)+cmp('Income',inc[5],inc[4],false)+'</div>';
+
+  // Daily average + projection
+  const now=today(),nm=now.slice(0,7),dim=new Date(y,mo,0).getDate();
+  const el=m===nm?+now.slice(8):m<nm?dim:0, avg=el?exp[5]/el:0, pr=m===nm?avg*dim:exp[5], bud=B[m]||0;
+  $('proj').innerHTML=`<b>📅 Daily Average ও Projection</b><div class="grid" style="grid-template-columns:1fr 1fr;margin-top:8px">
+    <div class="stat"><small>Daily average khoroch</small><b>${money(Math.round(avg))}</b></div>
+    <div class="stat"><small>${m===nm?'Mash shesh e projected':'Mash er mot khoroch'}</small><b class="exp">${money(Math.round(pr))}</b></div></div>`
+    +(bud&&m===nm?`<div class="warn" style="display:block;${pr>bud?'':'background:#dcfce7;color:#166534'}">${pr>bud?`⚠️ Ei gotite cholle budget er cheye ${money(Math.round(pr-bud))} beshi hobe`:'✅ Ei gotite cholle budget er moddhe thakbe'}</div>`:'');
+
+  // Top 5
+  const t5=D.filter(x=>x.type==='Expense'&&x.date.slice(0,7)===m).sort((a,b)=>b.amount-a.amount).slice(0,5);
+  $('top5').innerHTML=t5.length?t5.map((x,i)=>`<div class="item"><b>${i+1}.</b><div class="m"><b>${esc(x.category)}</b><small>${x.date}${x.note?' • '+esc(x.note):''}</small></div><b class="exp">${money(x.amount)}</b></div>`).join(''):empty;
+
+  // Year-wise
+  const yy=$('yr').value||y,yt=D.filter(x=>x.date.slice(0,4)==yy);
+  const yi=sum(yt.filter(x=>x.type==='Income')),ye=sum(yt.filter(x=>x.type==='Expense')),g={};
+  yt.filter(x=>x.type==='Expense').forEach(x=>g[x.category]=(g[x.category]||0)+x.amount);
+  const cs=Object.entries(g).sort((a,b)=>b[1]-a[1]);
+  $('yrS').innerHTML=`<div class="grid" style="grid-template-columns:repeat(3,1fr);margin:8px 0">
+    <div class="stat"><small>Income</small><b class="inc">${money(yi)}</b></div>
+    <div class="stat"><small>Expense</small><b class="exp">${money(ye)}</b></div>
+    <div class="stat"><small>Balance</small><b>${money(yi-ye)}</b></div></div>`
+    +(cs.length?`<div>🏆 সবচেয়ে বেশি খরচ: <b>${esc(cs[0][0])}</b> (${money(cs[0][1])})</div>`+cs.map(([k,v])=>`<div style="margin-top:6px"><small>${esc(k)} — ${money(v)} (${(v/ye*100).toFixed(0)}%)</small><div class="bar" style="margin:2px 0"><i style="width:${v/ye*100}%;background:#4f46e5"></i></div></div>`).join(''):empty);
+}
+
+// ===== Generic form modal =====
+function gen(title,fields,cb){
+  $('gT').textContent=title;_gf=fields;_gcb=cb;
+  $('gF').innerHTML=fields.map(f=>`<label>${f.l}</label>`+(f.o
+    ?`<select id="g_${f.k}">${f.o.map(([v,t])=>`<option value="${v}"${v===f.v?' selected':''}>${t}</option>`).join('')}</select>`
+    :`<input id="g_${f.k}" type="${f.t||'text'}" value="${esc(f.v??'')}"${f.t==='number'?' min="0" step="any"':''}>`)).join('');
+  $('gM').style.display='flex';
+}
+async function genSave(){
+  const o={};_gf.forEach(f=>o[f.k]=$('g_'+f.k).value.trim());
+  const r=await _gcb(o);
+  if(r!==false){$('gM').style.display='none';await load();}
+}
+async function delGen(fn,id){if(!confirm('Delete করতে চান?'))return;$('load').style.display='block';await run(fn,id);await load();}
+
+// ===== Goals =====
+function renderGoals(){
+  $('goals').innerHTML=G.length?G.map(g=>{const p=Math.min(g.saved/g.target*100,100);return `
+    <div class="item blk"><div style="display:flex;justify-content:space-between"><b>🎯 ${esc(g.name)}</b><b>${p.toFixed(0)}%</b></div>
+    <div class="bar"><i style="width:${p}%;background:${p>=100?'#16a34a':'#4f46e5'}"></i></div>
+    <small>${money(g.saved)} / ${money(g.target)}${g.deadline?' • Deadline: '+g.deadline:''}${p>=100?' ✅ Complete!':' • baki '+money(g.target-g.saved)}</small>
+    <div class="row"><button onclick="goalAdd('${g.id}')">➕ Jama</button><button onclick="goalForm('${g.id}')">✏️</button><button onclick="delGen('deleteGoal','${g.id}')">🗑</button></div></div>`}).join(''):empty;
+}
+function goalForm(id){
+  const g=G.find(x=>x.id===id)||{};
+  gen(id?'Goal Edit':'নতুন Savings Goal',[
+    {k:'name',l:'Goal er nam (jemon: Laptop)',v:g.name},{k:'target',l:'Target (৳)',t:'number',v:g.target},
+    {k:'saved',l:'Ekhon porjonto jomeche (৳)',t:'number',v:g.saved||0},{k:'deadline',l:'Deadline (ঐচ্ছিক)',t:'date',v:g.deadline}],
+    o=>{if(!o.name||!(+o.target>0)){alert('Nam ar Target dao');return false;}return run('saveGoal',{...o,id:g.id});});
+}
+function goalAdd(id){
+  const g=G.find(x=>x.id===id);
+  gen('Goal e taka jama: '+g.name,[{k:'amt',l:'Koto taka?',t:'number'}],
+    o=>{if(!(+o.amt>0))return false;return run('saveGoal',{...g,saved:g.saved+ +o.amt});});
+}
+
+// ===== Debts =====
+function renderDebts(){
+  const rem=d=>d.amount-d.paid,sm=t=>DB.filter(d=>d.type===t).reduce((s,d)=>s+rem(d),0);
+  $('dSum').innerHTML=`<div class="grid" style="grid-template-columns:1fr 1fr"><div class="stat"><small>আমি পাব</small><b class="inc">${money(sm('Pabo'))}</b></div><div class="stat"><small>আমি দেব</small><b class="exp">${money(sm('Dibo'))}</b></div></div>`;
+  $('debts').innerHTML=DB.length?[...DB].sort((a,b)=>(rem(b)>0)-(rem(a)>0)).map(d=>{const r=rem(d);return `
+    <div class="item blk"><div style="display:flex;justify-content:space-between"><b>${d.type==='Pabo'?'⬇️':'⬆️'} ${esc(d.person)}</b>
+    <b class="${d.type==='Pabo'?'inc':'exp'}">${r>0?money(r):'Settled ✅'}</b></div>
+    <small>${d.type==='Pabo'?'Amake dibe':'Ami dibo'} • Mot ${money(d.amount)} • Shodh ${money(d.paid)}${d.date?' • '+d.date:''}${d.note?' • '+esc(d.note):''}</small>
+    <div class="row">${r>0?`<button onclick="debtPay('${d.id}')">💵 Payment</button>`:''}<button onclick="debtForm('${d.id}')">✏️</button><button onclick="delGen('deleteDebt','${d.id}')">🗑</button></div></div>`}).join(''):empty;
+}
+function debtForm(id){
+  const d=DB.find(x=>x.id===id)||{};
+  gen(id?'Debt Edit':'নতুন Loan/Debt',[
+    {k:'person',l:'Kar sathe',v:d.person},{k:'type',l:'Type',v:d.type||'Pabo',o:[['Pabo','Ami pabo (ami dhar diyechi)'],['Dibo','Ami dibo (ami dhar niyechi)']]},
+    {k:'amount',l:'Mot Amount (৳)',t:'number',v:d.amount},{k:'paid',l:'Ekhon porjonto shodh hoyeche (৳)',t:'number',v:d.paid||0},
+    {k:'date',l:'Tarikh',t:'date',v:d.date||today()},{k:'note',l:'Note',v:d.note}],
+    o=>{if(!o.person||!(+o.amount>0)){alert('Nam ar Amount dao');return false;}return run('saveDebt',{...o,id:d.id});});
+}
+function debtPay(id){
+  const d=DB.find(x=>x.id===id);
+  gen('Payment: '+d.person,[{k:'amt',l:`Koto taka shodh hoilo? (baki ${money(d.amount-d.paid)})`,t:'number'}],
+    o=>{if(!(+o.amt>0))return false;return run('saveDebt',{...d,paid:Math.min(d.amount,d.paid+ +o.amt)});});
+}
+
+// ===== Version 3 =====
+const KW={Food:'chaa cha tea coffee lunch dinner breakfast biryani khabar food nasta snacks restaurant pizza burger bazar grocery চা খাবার নাস্তা বাজার',
+ Transport:'rickshaw bus uber pathao cng taxi fuel petrol train launch fare রিকশা বাস',
+ Shopping:'shirt shoes shopping cloth dress panjabi জামা',Bills:'bill internet wifi electricity gas mobile recharge load water বিল',
+ Rent:'rent bhara বাসাভাড়া',Health:'medicine doctor osudh hospital test ওষুধ',
+ Education:'book fee tuition course exam school বই',Entertainment:'movie netflix game cinema party tour'};
+const IK={Salary:'salary beton বেতন',Business:'business profit sale',Gift:'gift selami',Other:'income bonus received'};
+const dAgo=n=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4-n*864e5).toISOString().slice(0,10);
+
+// 1) Smart Quick Add
+function qaParse(s){
+  s=s.trim();const m=s.match(/\d[\d,]*\.?\d*/);if(!m)return null;
+  const amount=parseFloat(m[0].replace(/,/g,''));if(!(amount>0))return null;
+  let w=s.replace(m[0],' ').toLowerCase().split(/\s+/).filter(Boolean),date=today();
+  if(w.some(x=>['kal','gotokal','yesterday','গতকাল','কাল'].includes(x)))date=dAgo(1);
+  else if(w.some(x=>['porshu','pershu'].includes(x)))date=dAgo(2);
+  w=w.filter(x=>!['aj','ajke','today','kal','gotokal','yesterday','porshu','pershu','আজ','গতকাল','কাল','tk','taka','৳'].includes(x));
+  const has=(list,x)=>(' '+list+' ').includes(' '+x+' ');
+  const isInc=s.startsWith('+')||w.some(x=>Object.values(IK).some(l=>has(l,x)));
+  let category='Other';
+  if(isInc){category=Object.keys(IK).find(k=>w.some(x=>has(IK[k],x)))||'Other';}
+  else{
+    category=Object.keys(KW).find(k=>w.some(x=>has(KW[k],x)));
+    if(!category){ // ager abhyash theke shikha
+      const h=D.filter(x=>x.type==='Expense'&&x.note).sort((a,b)=>b.date.localeCompare(a.date))
+        .find(x=>w.some(t=>t.length>=3&&x.note.toLowerCase().includes(t)));
+      category=h?h.category:'Other';
+    }
+  }
+  const note=w.filter(x=>x!=='+').join(' ');
+  return{date,type:isInc?'Income':'Expense',category,amount,note:note?note[0].toUpperCase()+note.slice(1):''};
+}
+function qaPreview(){
+  const p=qaParse($('qa').value);
+  $('qaP').textContent=p?`✅ ${p.type} • ${p.category} • ${money(p.amount)} • ${p.date}${p.note?' • '+p.note:''}`:'';
+}
+async function qaSave(){
+  const p=qaParse($('qa').value);if(!p)return alert('Amount likho, jemon: chaa 20');
+  $('qa').value='';$('qaP').textContent='';await run('saveTxn',p);await load();
+}
+
+// 3) Streak
+function streaks(){
+  const t=today();if(!D.length)return{cur:0,best:0};
+  const first=D.reduce((a,x)=>x.date<a?x.date:a,t),spent=new Set(D.filter(x=>x.type==='Expense').map(x=>x.date));
+  let r=0,best=0;
+  for(let d=new Date(first);d<=new Date(t);d=new Date(+d+864e5)){
+    if(spent.has(d.toISOString().slice(0,10)))r=0;else{r++;best=Math.max(best,r);}
+  }
+  return{cur:r,best};
+}
+
+// 4) Runway + Streak card
+function renderHome2(){
+  const t=today(),bal=sum(D.filter(x=>x.type==='Income'))-sum(D.filter(x=>x.type==='Expense'));
+  const first=D.length?D.reduce((a,x)=>x.date<a?x.date:a,t):t,f30=dAgo(29),start=first>f30?first:f30;
+  const days=Math.max(1,Math.round((new Date(t)-new Date(start))/864e5)+1);
+  const burn=sum(D.filter(x=>x.type==='Expense'&&x.date>=start&&x.date<=t))/days;
+  let rw;
+  if(bal<=0)rw='<span class="exp">Balance nei ⚠️</span>';
+  else if(!burn)rw='Khoroch nei, tai chinta nei 😊';
+  else{const n=Math.floor(bal/burn);rw=`<b>~${n} din</b> cholbe <small>(${dAgo(-n)} porjonto • gode ${money(Math.round(burn))}/din)</small>`;}
+  const s=streaks();
+  $('rw').innerHTML=`<div>⏳ <b>Runway:</b> ${rw}</div><div style="margin-top:6px">🔥 <b>No-Spend Streak:</b> ${s.cur} din <small>(best ${s.best})</small></div>`;
+}
+
+// 2) Heatmap
+function renderHeat(){
+  const m=$('month').value,[y,mo]=m.split('-').map(Number),dim=new Date(y,mo,0).getDate(),off=new Date(y,mo-1,1).getDay(),g={};
+  D.filter(x=>x.type==='Expense'&&x.date.slice(0,7)===m).forEach(x=>g[+x.date.slice(8)]=(g[+x.date.slice(8)]||0)+x.amount);
+  const mx=Math.max(1,...Object.values(g));
+  let h=['Su','Mo','Tu','We','Th','Fr','Sa'].map(d=>`<small style="text-align:center;color:#999">${d}</small>`).join('')+'<i></i>'.repeat(off);
+  for(let d=1;d<=dim;d++){const v=g[d]||0,a=v?.15+.85*v/mx:0;
+    h+=`<div title="${d}: ${money(v)}" style="${v?`background:rgba(220,38,38,${a.toFixed(2)});color:${a>.55?'#fff':'#374151'}`:''}">${d}</div>`;}
+  $('hm').innerHTML='<div class="hm">'+h+'</div>';
+  const top=Object.entries(g).sort((a,b)=>b[1]-a[1])[0];
+  $('hmT').textContent=top?`Sobcheye beshi khoroch: ${top[0]} tarikh (${money(top[1])}) • No-spend din: ${dim-Object.keys(g).length}`:'Ei mash e khoroch nei';
+}
+
+// 3) Badges
+function renderBadges(){
+  const s=streaks(),n=D.length,nm=today().slice(0,7);
+  const net=sum(D.filter(x=>x.type==='Income'))-sum(D.filter(x=>x.type==='Expense'));
+  const okMonth=Object.keys(B).some(k=>k<nm&&B[k]>0&&D.some(x=>x.date.slice(0,7)===k)&&sum(D.filter(x=>x.type==='Expense'&&x.date.slice(0,7)===k))<=B[k]);
+  const L=[['🔥','3-din No-Spend',s.best>=3],['🔥🔥','7-din No-Spend',s.best>=7],['📝','10 ta entry',n>=10],['📚','50 ta entry',n>=50],
+    ['💯','100 ta entry',n>=100],['🎯','Budget Master (budget er moddhe mash)',okMonth],['💰','Prothom ৳10,000 saving',net>=10000],
+    ['🏆','Goal complete',G.some(g=>g.target>0&&g.saved>=g.target)],['🤝','Debt settled',DB.some(d=>d.amount>0&&d.paid>=d.amount)]];
+  $('bd').innerHTML=`<small>${L.filter(b=>b[2]).length}/${L.length} unlocked</small><div>`+L.map(b=>`<span class="bdg${b[2]?'':' off'}">${b[0]} ${b[1]}</span>`).join('')+'</div>';
+}
+
+// 5) Bill Split
+function splitForm(){
+  gen('✂️ Bill Split',[
+    {k:'note',l:'Ki jonno (jemon: Restaurant)'},{k:'total',l:'Mot bill (৳) — ami dilam',t:'number'},
+    {k:'people',l:'Bondhuder nam (comma diye, ami baade)'},
+    {k:'category',l:'Category',v:'Food',o:CATS.Expense.map(c=>[c,c])},{k:'date',l:'Tarikh',t:'date',v:today()}],
+    o=>{
+      const p=o.people.split(',').map(s=>s.trim()).filter(Boolean);
+      if(!(+o.total>0)||!p.length){alert('Bill ar bondhuder nam dao');return false;}
+      const n=p.length+1,share=Math.round(o.total/n*100)/100,nt=(o.note||'Bill')+` (${n} jon)`;
+      run('saveTxn',{date:o.date,type:'Expense',category:o.category,amount:share,note:'Split: '+nt});
+      p.forEach(x=>run('saveDebt',{person:x,type:'Pabo',amount:share,paid:0,date:o.date,note:'Bill split: '+nt}));
+      alert(`Prottek jon ${money(share)} kore. Tomar ongsho Expense e, ar ${p.length} jon er Debt (Ami pabo) toiri hoyeche ✅`);
+    });
+}
+
+// Init
+$('month').value=today().slice(0,7);
+$('cat').innerHTML='<option value="">সব Category</option>'+[...new Set([...CATS.Expense,...CATS.Income])].map(c=>`<option>${c}</option>`).join('');
+window.addEventListener('online',sync);window.addEventListener('offline',sync);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync();});setInterval(sync,60000);
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+load();
+if(!CFG.url)settings();
+</script>
+</body>
+</html>
